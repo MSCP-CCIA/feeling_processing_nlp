@@ -2,7 +2,7 @@ import pandas as pd
 import re
 import emoji
 import spacy
-
+import requests
 # Cargar modelo SpaCy una sola vez
 nlp = spacy.load("en_core_web_sm", disable=["ner", "parser"])  # desactiva lo que no uses
 
@@ -46,6 +46,23 @@ def preprocess_text_batch(texts: list,
 
 # === PIPELINE PRINCIPAL ===
 if __name__ == "__main__":
+  URL = "https://cs.stanford.edu/people/alecmgo/trainingandtestdata.zip"
+  ZIP_PATH = "sentiment140.zip"
+  OUT_DIR = "sentiment140"
+  
+  if not os.path.exists(ZIP_PATH):
+      print("Descargando el archivo ZIP...")
+      r = requests.get(URL, timeout=120)
+      r.raise_for_status()
+      open(ZIP_PATH, "wb").write(r.content)
+      print("Descarga completa.")
+      os.makedirs(OUT_DIR, exist_ok=True)
+      with zipfile.ZipFile(ZIP_PATH) as zf:
+          print(f"Extrayendo archivos a '{OUT_DIR}'...")
+          zf.extractall(OUT_DIR)
+          print("Extracción completa.")
+      train_csv = os.path.join(OUT_DIR, "training.1600000.processed.noemoticon.csv")
+      test_csv = os.path.join(OUT_DIR, "testdata.manual.2009.06.14.csv")
     # 1. Cargar el dataset
     column_names = ["sentiment", "id", "date", "query", "user", "text"]
     df = pd.read_csv("sentiment140_data/training.1600000.processed.noemoticon.csv",encoding='ISO-8859-1',names=column_names)  # o pd.read_parquet("dataset.parquet")
