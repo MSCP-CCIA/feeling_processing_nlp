@@ -7,9 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1gsYahX4cC82TvP5n26SErJKrCQKa9gRt
 """
 
-!pip -q install -U datasets emoji spacy
-!python -m spacy download en_core_web_sm
-
 import os
 import zipfile
 import requests
