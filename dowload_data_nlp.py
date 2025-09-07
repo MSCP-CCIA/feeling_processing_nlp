@@ -80,10 +80,10 @@ if __name__ == "__main__":
     processed_texts = preprocess_text_batch(
         texts,
         lemmatize = False,
-        remove_stopwords = True,
+        remove_stopwords = False,
         handle_emojis = 'demojize',
-        remove_punctuation = True,
-        normalize_lengthening = True
+        remove_punctuation = False,
+        normalize_lengthening = False
     )
     
     df["text"] = processed_texts

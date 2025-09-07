@@ -5,7 +5,10 @@ __pycache__/
 .idea
 # C extensions
 *.so
-
+.env
+data_process
+test
+test.py
 # Distribution / packaging
 .Python
 build/
