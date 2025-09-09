@@ -26,7 +26,7 @@ except ModuleNotFoundError:
 
 # Config
 TRACKING_URI = (
-    "http://127.0.0.1:8080"  # "http://ec2-34-201-213-246.compute-1.amazonaws.com:8080"
+    "http://ec2-34-201-213-246.compute-1.amazonaws.com:8080"  # "http://ec2-34-201-213-246.compute-1.amazonaws.com:8080"
 )
 RANDOM_STATE = 42
 VEC_KW = dict(
