@@ -1,13 +1,13 @@
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.layers import Dense, Dropout, Input
-from tensorflow.keras.models import Model
-from tensorflow.keras.callbacks import Callback, EarlyStopping
-from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score
-from scipy.sparse import load_npz
 import mlflow
 import mlflow.keras
+import numpy as np
+import tensorflow as tf
+from scipy.sparse import load_npz
+from sklearn.metrics import f1_score
+from sklearn.model_selection import KFold
+from tensorflow.keras.callbacks import Callback, EarlyStopping
+from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.models import Model
 
 # ===============================
 # 1. CONFIGURAR MLflow TRACKING SERVER

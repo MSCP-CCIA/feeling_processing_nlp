@@ -1,24 +1,26 @@
-import os, glob, json, time, logging
+import glob
+import json
+import logging
+import os
+import time
 from pathlib import Path
+
+import joblib
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics import (accuracy_score, classification_report,
+                             confusion_matrix, precision_recall_fscore_support,
+                             roc_auc_score)
+from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import (
-    accuracy_score,
-    precision_recall_fscore_support,
-    roc_auc_score,
-    confusion_matrix,
-    classification_report,
-)
-import joblib
 
 try:
     import mlflow
     import mlflow.sklearn
 except ModuleNotFoundError:
-    import subprocess, sys
+    import subprocess
+    import sys
 
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "--quiet", "mlflow>=2.12,<3"]

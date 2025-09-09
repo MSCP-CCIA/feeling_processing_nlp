@@ -1,12 +1,16 @@
-import os, time, logging
-import numpy as np
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
+import logging
+import os
+import time
+
 import mlflow
 import mlflow.sklearn
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import (accuracy_score, precision_recall_fscore_support,
+                             roc_auc_score)
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
 
 # Configuración
 DATA_FILE = "../selected_data/processed_dataset_remove_punctuation_true.parquet"

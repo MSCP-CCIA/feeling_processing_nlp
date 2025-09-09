@@ -1,22 +1,20 @@
-import time, logging
-import scipy.sparse as sps
+import logging
+import time
+
 import numpy as np
+import scipy.sparse as sps
+from sklearn.metrics import (accuracy_score, classification_report,
+                             confusion_matrix, precision_recall_fscore_support,
+                             roc_auc_score)
 from sklearn.model_selection import GridSearchCV, PredefinedSplit
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    accuracy_score,
-    precision_recall_fscore_support,
-    roc_auc_score,
-    confusion_matrix,
-    classification_report,
-)
+from sklearn.tree import DecisionTreeClassifier
 
 try:
     import mlflow
     import mlflow.sklearn
 except ModuleNotFoundError:
-    import subprocess, sys
+    import subprocess
+    import sys
 
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "--quiet", "mlflow>=2.12,<3"]
@@ -25,20 +23,14 @@ except ModuleNotFoundError:
     import mlflow.sklearn
 
 # Config
-TRACKING_URI = (
-    "http://ec2-34-201-213-246.compute-1.amazonaws.com:8080"  # "http://ec2-34-201-213-246.compute-1.amazonaws.com:8080"
-)
+TRACKING_URI = "http://ec2-34-201-213-246.compute-1.amazonaws.com:8080"
 RANDOM_STATE = 42
-VEC_KW = dict(
-    lowercase=False, max_df=0.9, min_df=5, max_features=500_000, dtype=np.float32
-)
-NGRAM = (1, 2)
 
 # Logging
 logging.basicConfig(
     level="INFO", format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 )
-logger = logging.getLogger("tfidf_rf_pipeline")
+logger = logging.getLogger("tfidf_tree_pipeline")
 
 
 # ==========================
@@ -62,30 +54,29 @@ def metrics_block(y_true, y_pred, y_prob=None):
 
 
 def train_and_validate(X_train, y_train, X_val, y_val, X_test, y_test, model_name):
-    # Si YA tienes TF-IDF cargado desde disco, NO vectorices de nuevo
+    # YA tenemos TF-IDF cargado, no vectorizamos
     Xtr, Xval, Xte = X_train, X_val, X_test
 
-    # PredefinedSplit para separar validación
-    test_fold = np.concatenate(
-        [np.full(Xtr.shape[0], -1), np.zeros(Xval.shape[0])]
-    )
+    # PredefinedSplit para validación
+    test_fold = np.concatenate([np.full(Xtr.shape[0], -1), np.zeros(Xval.shape[0])])
     ps = PredefinedSplit(test_fold)
 
     # Concatenar train + val
     from scipy.sparse import vstack
+
     X_trval = vstack([Xtr, Xval])
     y_trval = np.concatenate([y_train, y_val])
 
-    # Random Forest + GridSearch
-    rf = RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=-1)
+    # Decision Tree + GridSearch
+    tree = DecisionTreeClassifier(random_state=RANDOM_STATE)
     param_grid = {
-        "n_estimators": [100, 300],
-        "max_depth": [None, 20, 50],
-        "max_features": ["sqrt", "log2"],
+        "max_depth": [10, 20],
+        "criterion": ["gini", "entropy"],
+        "min_samples_split": [2, 10],
     }
 
     grid = GridSearchCV(
-        rf,
+        tree,
         param_grid,
         cv=ps,
         scoring="f1",
@@ -132,53 +123,58 @@ def train_and_validate(X_train, y_train, X_val, y_val, X_test, y_test, model_nam
 # Main
 # ==========================
 def main():
-    # --- CARGA Y COMBINACIÓN DE DATOS ---
     try:
         logger.info("Cargando datos desde los archivos...")
 
-        # Carga los archivos que son matrices dispersas directamente con np.load
-        # y los verifica.
-        X_train_obj = np.load('../data_process/X_train.npy', allow_pickle=True)
-        X_train = X_train_obj.item() if isinstance(X_train_obj, np.ndarray) and X_train_obj.dtype == object else X_train_obj
+        # Cargar matrices TF-IDF ya procesadas
+        X_train_obj = np.load("../data_process/X_train.npy", allow_pickle=True)
+        X_train = (
+            X_train_obj.item()
+            if isinstance(X_train_obj, np.ndarray) and X_train_obj.dtype == object
+            else X_train_obj
+        )
 
-        X_val_obj = np.load('../data_process/X_dev.npy', allow_pickle=True)
-        X_val = X_val_obj.item() if isinstance(X_val_obj, np.ndarray) and X_val_obj.dtype == object else X_val_obj
+        X_val_obj = np.load("../data_process/X_dev.npy", allow_pickle=True)
+        X_val = (
+            X_val_obj.item()
+            if isinstance(X_val_obj, np.ndarray) and X_val_obj.dtype == object
+            else X_val_obj
+        )
 
-        X_test_obj = np.load('../data_process/X_test.npy', allow_pickle=True)
-        X_test = X_test_obj.item() if isinstance(X_test_obj, np.ndarray) and X_test_obj.dtype == object else X_test_obj
+        X_test_obj = np.load("../data_process/X_test.npy", allow_pickle=True)
+        X_test = (
+            X_test_obj.item()
+            if isinstance(X_test_obj, np.ndarray) and X_test_obj.dtype == object
+            else X_test_obj
+        )
 
-        # Carga los arrays de etiquetas
-        y_train = np.load('../data_process/y_train.npy', allow_pickle=True)
-        y_val = np.load('../data_process/y_dev.npy', allow_pickle=True)
-        y_test = np.load('../data_process/y_test.npy', allow_pickle=True)
+        # Cargar etiquetas
+        y_train = np.load("../data_process/y_train.npy", allow_pickle=True)
+        y_val = np.load("../data_process/y_dev.npy", allow_pickle=True)
+        y_test = np.load("../data_process/y_test.npy", allow_pickle=True)
 
-        # Combina las matrices dispersas con vstack
+        # Combinar train + val (solo para logging, el split lo controla PredefinedSplit)
         X_combined = sps.vstack((X_train, X_val))
-
-        # Combina los arrays de etiquetas con np.concatenate
         y_combined = np.concatenate((y_train, y_val), axis=0)
 
         logger.info(f"Forma de X_combined: {X_combined.shape}")
         logger.info(f"Forma de y_combined: {y_combined.shape}")
 
-    except FileNotFoundError as e:
-        logger.error("Error: Asegúrate de que los archivos de datos estén en la carpeta correcta.")
-        exit(1)
     except Exception as e:
-        logger.error(f"Error inesperado al cargar los archivos: {e}")
+        logger.error(f"Error cargando datos: {e}")
         exit(1)
 
     dataset_name = "processed_dataset_remove_punctuation_true"
 
     mlflow.set_tracking_uri(TRACKING_URI)
-    mlflow.set_experiment(f"TF-IDF_ngram_1-2-RF-{dataset_name}")
+    mlflow.set_experiment(f"TF-IDF_ngram_1-2-Tree-{dataset_name}")
 
     with mlflow.start_run(run_name=dataset_name):
         mlflow.log_param("random_state", RANDOM_STATE)
 
         t0 = time.time()
         metr, report, best_params = train_and_validate(
-            X_train, y_train, X_val, y_val, X_test, y_test, f"{dataset_name}_tfidf_rf"
+            X_train, y_train, X_val, y_val, X_test, y_test, f"{dataset_name}_tfidf_tree"
         )
 
         mlflow.log_dict(

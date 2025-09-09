@@ -1,10 +1,11 @@
-import pandas as pd
-import re
-import emoji
-import spacy
-import requests
 import os
+import re
 import zipfile
+
+import emoji
+import pandas as pd
+import requests
+import spacy
 
 # Cargar modelo SpaCy una sola vez
 nlp = spacy.load("en_core_web_sm", disable=["ner", "parser"])  # desactiva lo que no uses

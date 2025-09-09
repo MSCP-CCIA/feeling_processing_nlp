@@ -1,12 +1,14 @@
-import numpy as np
 import logging
-import scipy.sparse as sps
-from sklearn.model_selection import GridSearchCV, PredefinedSplit
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-import mlflow
-import time
 import os
+import time
+
+import mlflow
+import numpy as np
+import scipy.sparse as sps
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (accuracy_score, f1_score, precision_score,
+                             recall_score, roc_auc_score)
+from sklearn.model_selection import GridSearchCV, PredefinedSplit
 
 # Configura el logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
