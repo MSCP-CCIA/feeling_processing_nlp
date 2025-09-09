@@ -213,3 +213,4 @@ __marimo__/
 sentiment140/
 sentiment140.zip
 .idea
+/mlruns/
