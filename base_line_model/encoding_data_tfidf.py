@@ -20,7 +20,7 @@ VEC_KW = dict(
     lowercase=False,
     max_df=0.9,
     min_df=5,
-    max_features=500_000,
+    max_features=310_291,
     dtype=np.float32
 )
 

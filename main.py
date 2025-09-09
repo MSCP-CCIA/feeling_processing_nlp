@@ -1,16 +1,16 @@
-# main.py
-from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
-from typing import Optional, Union, Dict, Any
 import json
+from typing import Any, Dict, List, Optional, Union
 
-# ---------------------------
-# MLflow config (usa tu servidor)
-# ---------------------------
 import mlflow
+import mlflow.sklearn
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse, JSONResponse
 from mlflow.tracking import MlflowClient
+from pydantic import BaseModel
 
+# ---------------------------
+# MLflow config
+# ---------------------------
 TRACKING_URI = "http://ec2-34-201-213-246.compute-1.amazonaws.com:8080"
 mlflow.set_tracking_uri(TRACKING_URI)
 client = MlflowClient()
@@ -23,9 +23,7 @@ app = FastAPI(
     description="Comparación de modelos (LR vs DistilBERT) y consulta de modelos en MLflow.",
 )
 
-# ---------------------------
-# 1) /comparison (y /com)
-# ---------------------------
+
 # Métricas fijas tomadas de tus capturas
 LR_METRICS = {
     "test_prec": 0.8175051553939453,
@@ -39,7 +37,10 @@ LR_METRICS = {
 LR_PARAMS = {
     "C": 1,
     "solver": "liblinear",
-    "param_grid": {"C": [0.001, 0.01, 0.1, 1, 10, 100], "solver": ["liblinear", "lbfgs"]},
+    "param_grid": {
+        "C": [0.001, 0.01, 0.1, 1, 10, 100],
+        "solver": ["liblinear", "lbfgs"],
+    },
 }
 BERT_METRICS = {
     "f1_binary": 0.9137168141592921,
@@ -48,13 +49,16 @@ BERT_METRICS = {
 }
 BERT_INFO = {"hf_model_id": "distilbert-base-uncased-finetuned-sst-2-english"}
 
+
 def build_payload():
     f1_lr = float(LR_METRICS["test_f1"])
     f1_bin = float(BERT_METRICS["f1_binary"])
     deltas = {
         "f1_binary_delta": round(f1_bin - f1_lr, 6),
         "f1_macro_delta_vs_lr_f1": round(float(BERT_METRICS["f1_macro"]) - f1_lr, 6),
-        "f1_weighted_delta_vs_lr_f1": round(float(BERT_METRICS["f1_weighted"]) - f1_lr, 6),
+        "f1_weighted_delta_vs_lr_f1": round(
+            float(BERT_METRICS["f1_weighted"]) - f1_lr, 6
+        ),
         "relative_improvement_%": round((f1_bin - f1_lr) / f1_lr * 100, 4),
     }
     winner = "distilbert" if f1_bin > f1_lr else "logistic_regression"
@@ -65,6 +69,7 @@ def build_payload():
         "winner_by_f1_binary": winner,
         "notes": "LR (métricas/params de la captura) vs DistilBERT (F1 binary/macro/weighted).",
     }
+
 
 def render_html(payload: dict) -> str:
     lr = payload["logistic_regression"]["metrics"]
@@ -127,32 +132,10 @@ h1,h2,h3 {{ margin: 0 0 10px; }}
 
 </body></html>"""
 
-@app.get("/", response_class=HTMLResponse)
-def home():
-    return HTMLResponse(
-        '<h2>API OK</h2><ul>'
-        '<li><a href="/comparison">/comparison</a> (HTML)</li>'
-        '<li><a href="/comparison/json">/comparison/json</a> (JSON)</li>'
-        '<li><a href="/com">/com</a> (alias HTML)</li>'
-        '<li><a href="/docs">/docs</a> (Swagger)</li>'
-        '</ul>'
-    )
 
-@app.get("/comparison", response_class=HTMLResponse)
-def comparison_html():
-    return HTMLResponse(render_html(build_payload()))
-
-
-@app.get("/comparison/json")
-def comparison_json(pretty: bool = Query(False, description="True para indentado")):
-    payload = build_payload()
-    if pretty:
-        return HTMLResponse("<pre>" + json.dumps(payload, indent=2, ensure_ascii=False) + "</pre>")
-    return JSONResponse(payload)
-
-# ---------------------------
-# 2) /model_details (tu endpoint MLflow)
-# ---------------------------
+# ------------------------------
+# Pydantic Schemas
+# ------------------------------
 class ModelDetails(BaseModel):
     name: str
     version: str
@@ -164,28 +147,91 @@ class ModelDetails(BaseModel):
     hyperparameters: Dict[str, Any]
     metrics: Dict[str, Any]
 
-@app.get("/model_details", response_model=ModelDetails)
-async def get_model_details(model_name: str, model_version: Optional[Union[str, int]] = 1):
-    """
-    Obtiene metadata, hiperparámetros y métricas de un modelo registrado en MLflow.
-    Ejemplo: /model_details?model_name=BoW-MNB_mimodelo&model_version=1
-    """
-    try:
-        # Info del modelo y run_id
-        mv = client.get_model_version(name=model_name, version=str(model_version))
-        run_id = mv.run_id
 
-        # Detalles del run (params/metrics)
+class PredictRequest(BaseModel):
+    texts: List[str]
+
+
+class PredictResponse(BaseModel):
+    predictions: List[Any]
+
+
+# ------------------------------
+# Load Models (lazy loading)
+# ------------------------------
+VEC_MODEL_NAME = "TFIDF_Vectorizer_1_2"
+CLS_MODEL_NAME = "TFIDF_ngram_1-2-LGR_processed_dataset_remove_punctuation_true"
+
+_vectorizer = None
+_classifier = None
+
+
+def load_models():
+    global _vectorizer, _classifier
+    if _vectorizer is None:
+        _vectorizer = mlflow.sklearn.load_model(
+            f"models:/{VEC_MODEL_NAME}/2"
+        )  # usa versión 1
+    if _classifier is None:
+        _classifier = mlflow.sklearn.load_model(
+            f"models:/{CLS_MODEL_NAME}/1"
+        )  # usa versión 1
+    return _vectorizer, _classifier
+
+
+# ---------------------------
+# 1) /comparison (y /com)
+# ---------------------------
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return HTMLResponse(
+        "<h2>API OK</h2><ul>"
+        '<li><a href="/comparison">/comparison</a> (HTML)</li>'
+        '<li><a href="/comparison/json">/comparison/json</a> (JSON)</li>'
+        '<li><a href="/docs">/docs</a> (Swagger)</li>'
+        "</ul>"
+    )
+
+
+@app.get("/comparison", response_class=HTMLResponse)
+def comparison_html():
+    return HTMLResponse(render_html(build_payload()))
+
+
+@app.get("/comparison/json")
+def comparison_json(pretty: bool = Query(False, description="True para indentado")):
+    payload = build_payload()
+    if pretty:
+        return HTMLResponse(
+            "<pre>" + json.dumps(payload, indent=2, ensure_ascii=False) + "</pre>"
+        )
+    return JSONResponse(payload)
+
+
+# ---------------------------
+# 2) /model_details (tu endpoint MLflow)
+# ---------------------------
+@app.get("/model_details", response_model=ModelDetails)
+async def get_model_details(
+    model_name: str, model_version: Optional[Union[str, int]] = 1
+):
+    """Obtiene metadata, hiperparámetros y métricas de un modelo registrado en MLflow.
+    Ejemplo: /model_details?model_name=BoW-MNB_mimodelo&model_version=1"""
+    try:
+        model_version_info = client.get_model_version(
+            name=model_name, version=str(model_version)
+        )
+        run_id = model_version_info.run_id
         run = client.get_run(run_id)
 
         response_data = {
-            "name": mv.name,
-            "version": mv.version,
+            "name": model_version_info.name,
+            "version": model_version_info.version,
             "run_id": run_id,
-            "current_stage": mv.current_stage,
-            "artifact_uri": mv.source,
-            "description": mv.description,
-            "tags": mv.tags,
+            "current_stage": model_version_info.current_stage,
+            "artifact_uri": model_version_info.source,
+            "description": model_version_info.description,
+            "tags": model_version_info.tags,
             "hyperparameters": dict(run.data.params),
             "metrics": dict(run.data.metrics),
         }
@@ -197,7 +243,25 @@ async def get_model_details(model_name: str, model_version: Optional[Union[str, 
             detail=f"Error: Could not get model or run data. {e}",
         )
 
+
+@app.post("/predict", response_model=PredictResponse)
+async def predict(request: PredictRequest):
+    """Run batch predictions on a list of input texts."""
+    try:
+        vec, clf = load_models()
+        X = vec.transform(request.texts)  # vectorize input batch
+        preds = clf.predict(X)  # run inference
+        return {"predictions": preds.tolist()}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
+
+
 # ---------------------------
 # Run:
 # uvicorn main:app --reload --port 8000
 # ---------------------------
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, port=8000)
