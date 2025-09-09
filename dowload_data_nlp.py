@@ -82,7 +82,7 @@ if __name__ == "__main__":
         lemmatize = False,
         remove_stopwords = False,
         handle_emojis = 'demojize',
-        remove_punctuation = False,
+        remove_punctuation = True,
         normalize_lengthening = False
     )
     
